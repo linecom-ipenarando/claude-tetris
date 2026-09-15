@@ -27,8 +27,9 @@ There is no test suite or linter configured in this repo.
 
 All game logic lives in `game.js` as top-level functions operating on module-level mutable state (`board`, `current`, `next`, `score`, `lines`, `level`, `paused`, `gameOver`, `dropInterval`, etc.) — there are no classes or modules.
 
-- **Board model**: `board` is a `ROWS × COLS` (20×10) matrix; each cell is `0` (empty) or a color index 1–7 identifying which piece locked there.
-- **Pieces**: `PIECES` defines the 7 tetrominoes as square matrices of color indices. Rotation (`rotateCW`) is a matrix transpose + row reverse, not precomputed rotation states.
+- **Board model**: `board` is a `ROWS × COLS` (20×10) matrix; each cell is `0` (empty), a color index 1–8 identifying which piece locked there, or `HOLE` (`-1`) — a permanently unfillable cell punched by the nut piece.
+- **Pieces**: `PIECES` defines the 7 standard tetrominoes plus an 8th "nut" piece (`NUT`, a 3×3 ring with a hollow center) as square matrices of color indices. Rotation (`rotateCW`) is a matrix transpose + row reverse, not precomputed rotation states.
+- **Nut piece hole** (`merge`): when a `NUT` piece locks, its center cell is stamped with `HOLE` instead of a color (unless another piece already occupies it). `collide` treats `HOLE` as empty (`> 0` check) so it never blocks movement, but `clearLines` requires `v > 0` for every cell, so a row containing a `HOLE` can never be cleared. `HOLE` cells ride along for free when rows above shift down, since `clearLines` moves whole rows via `splice`/`unshift`. Rendering skips `HOLE` in `drawBlock` and instead punches a circle out of the canvas with `drawHole` (`globalCompositeOperation = 'destination-out'`).
 - **Collision** (`collide`): checks a shape against board bounds and existing locked cells.
 - **Wall kicks** (`tryRotate`): after rotating, tries offsets `[0, -1, 1, -2, 2]` columns until a non-colliding position is found, else the rotation is discarded.
 - **Game loop** (`loop`): driven by `requestAnimationFrame`; accumulates elapsed time in `dropAccum` and advances the piece down one row once `dropInterval` is exceeded, otherwise calls `lockPiece()`.

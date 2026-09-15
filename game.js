@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
+  '#90a4ae', // Tuerca - acero
 ];
 
 const PIECES = [
@@ -24,7 +25,11 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Tuerca - 3x3 con agujero central
 ];
+
+const NUT = 8;    // índice de la pieza/color tuerca
+const HOLE = -1;  // marca en board: celda vacía pero dibujada como agujero (no rellenable)
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -74,7 +79,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * (PIECES.length - 1)) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -86,7 +91,7 @@ function collide(shape, ox, oy) {
       const nx = ox + c;
       const ny = oy + r;
       if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
-      if (ny >= 0 && board[ny][nx]) return true;
+      if (ny >= 0 && board[ny][nx] > 0) return true;
     }
   }
   return false;
@@ -118,12 +123,16 @@ function merge() {
     for (let c = 0; c < current.shape[r].length; c++)
       if (current.shape[r][c])
         board[current.y + r][current.x + c] = current.shape[r][c];
+  if (current.type === NUT) {
+    const hr = current.y + 1, hc = current.x + 1;
+    if (board[hr][hc] === 0) board[hr][hc] = HOLE;
+  }
 }
 
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(v => v !== 0)) {
+    if (board[r].every(v => v > 0)) {
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
       cleared++;
@@ -196,6 +205,15 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.globalAlpha = 1;
 }
 
+function drawHole(context, x, y, size) {
+  context.save();
+  context.globalCompositeOperation = 'destination-out';
+  context.beginPath();
+  context.arc((x + 0.5) * size, (y + 0.5) * size, size * 0.78, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+}
+
 function drawGrid() {
   ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
@@ -218,9 +236,13 @@ function draw() {
   drawGrid();
 
   // board
+  const holes = [];
   for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++)
-      drawBlock(ctx, c, r, board[r][c], BLOCK);
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] === HOLE) holes.push([c, r]);
+      else drawBlock(ctx, c, r, board[r][c], BLOCK);
+    }
+  for (const [hc, hr] of holes) drawHole(ctx, hc, hr, BLOCK);
 
   if (gameOver) return;
 
@@ -235,6 +257,7 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  if (current.type === NUT) drawHole(ctx, current.x + 1, current.y + 1, BLOCK);
 }
 
 function drawNext() {
@@ -246,6 +269,7 @@ function drawNext() {
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  if (next.type === NUT) drawHole(nextCtx, offX + 1, offY + 1, NB);
 }
 
 function endGame() {
