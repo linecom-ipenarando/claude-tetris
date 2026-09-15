@@ -19,7 +19,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      id-token: write
 
     steps:
       - name: Checkout repository
@@ -30,13 +29,14 @@ jobs:
       - name: Triaje del issue con Claude
         uses: anthropics/claude-code-action@v1
         env:
-          GH_TOKEN: ${{ github.token }}
+          # NOTA: no fijar GH_TOKEN aquí. La action ya exporta GH_TOKEN/GITHUB_TOKEN
+          # con el token correcto resuelto internamente; sobrescribirlo lo pisaría.
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
-            --allowedTools "Read,Glob,Grep,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh api:*)"
+            --allowedTools "Read,Glob,Grep,Write,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh api:*)"
           prompt: |
             Eres el asistente de triaje de issues del repositorio $REPO (un Tetris en JavaScript
             vanilla, sin build ni tests: `index.html`, `style.css`, `game.js`). Vas a analizar el
@@ -111,13 +111,16 @@ jobs:
             Termina el comentario con una línea indicando que para implementar la solución basta
             con comentar algo como "@claude implementa esto" en el issue.
 
+            Escribe ese comentario completo con la herramienta Write en el archivo
+            `/tmp/claude-triage-comment.md` (no lo pegues directamente en un comando de shell).
+
             ANTES de publicar, comprueba si ya existe un comentario de un triaje anterior:
               gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments" --jq '.[] | select(.body | startswith("<!-- claude-issue-triage -->")) | .id'
 
             - Si YA existe un id, actualiza ESE comentario (no crees uno nuevo) con:
-              gh api --method PATCH "repos/$REPO/issues/comments/<id>" -f body=@ruta/al/comentario.md
+              gh api --method PATCH "repos/$REPO/issues/comments/<id>" -F body=@/tmp/claude-triage-comment.md
             - Si NO existe, créalo con:
-              gh issue comment "$ISSUE_NUMBER" --body-file ruta/al/comentario.md
+              gh issue comment "$ISSUE_NUMBER" --body-file /tmp/claude-triage-comment.md
 
             Así, cuando el issue se edite, el diagnóstico se reescribe en vez de acumular
             comentarios duplicados.
